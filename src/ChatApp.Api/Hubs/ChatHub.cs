@@ -9,84 +9,60 @@ namespace ChatApp.Api.Hubs
 {
     public class ChatHub : Hub<IChatClient>
     {
-        private static ISet<Connection> _connections = new HashSet<Connection>();
-        private static ISet<Room> _rooms = new HashSet<Room>();
-        private Connection CurrentConnection =>_connections.SingleOrDefault(c => c.ConnectionId == Context.ConnectionId);
-        private Room CallerRoom => _connections.SingleOrDefault(c => c == CurrentConnection).CurrentRoom;
-        private static Queue<Connection> Queue = new Queue<Connection>();
+        private readonly IChatService _chatService;
 
-        
+        private Connection CurrentConnection => _chatService.Connections.SingleOrDefault(c => c.ConnectionId == Context.ConnectionId);
+        private Room CallerRoom => _chatService.Connections.SingleOrDefault(c => c == CurrentConnection).CurrentRoom;
+
+        public ChatHub(IChatService chatService)
+        {
+            _chatService = chatService;
+        }
         public override async Task OnConnectedAsync()
         {
-            _connections.Add(new Connection(Context.ConnectionId, ConnectionState.Passive));
-            await Clients.Caller.ReceiveMessage("Welcome on ChatApp. Join to lobby if you want to start chatting.");
+            _chatService.AddConnection(new Connection(Context.ConnectionId, ConnectionState.Passive), async (caller, message) =>
+            {
+                await Clients.Client(caller.ConnectionId).ReceiveMessage(message);
+            });
             await base.OnConnectedAsync();
         }
 
-        public async Task JoinToLobby()
+        public void JoinToLobby()
         {
-            if(CurrentConnection.ConnectionState == ConnectionState.Chatting)
+            _chatService.AddToLobby(_chatService.Connections.SingleOrDefault(c => c.ConnectionId == Context.ConnectionId), async (caller,message) =>
             {
-                throw new Exception("You are chatting !!!");
-            }
+                await Clients.Client(caller.ConnectionId).ReceiveMessage(message);
+            });
 
-            await Clients.Caller.ReceiveMessage("We are looking for a person for you...");
-            Queue.Enqueue(CurrentConnection);
-
-            bool IsReady = false;
-            while(!IsReady)
-            {
-                await Task.Delay(1000);
-                if(Queue.Count > 1) 
-                {
-                    
-                    IsReady = true;
-                    var firstConnection = Queue.Dequeue();
-                    var secoundConnection = Queue.Dequeue();
-
-                    firstConnection.ConnectionState = ConnectionState.Chatting;
-                    secoundConnection.ConnectionState = ConnectionState.Chatting;
-                    _rooms.Add(new Room(firstConnection, secoundConnection));
-
-                    await Clients.Client(firstConnection.ConnectionId).StartChatting();
-                    await Clients.Client(secoundConnection.ConnectionId).StartChatting();
-                }
-            }
+            _chatService.TryCreateRoom(async (f,s)=>{
+                await Clients.Client(f.ConnectionId).StartChatting();
+                await Clients.Client(s.ConnectionId).StartChatting();
+            });            
         }
 
-        public async Task StopChatting()
+        public void SendMessage(string message)
         {
-            var otherPerson = CallerRoom.GetOtherPerson(CurrentConnection);
-            await Clients.Client(otherPerson.ConnectionId).StopChatting();
-            DestroyRoom();
+            _chatService.SendMessage(CurrentConnection, message, async (f ,s) =>{
+                await Clients.Client(f.ConnectionId).ReceiveMessage(message);
+                await Clients.Client(s.ConnectionId).ReceiveMessage(message);
+            });
         }
 
-        public async Task SendMessage(string message)
+        public void StopChatting()
         {
-            if(string.IsNullOrWhiteSpace(message)) return;
-            var otherPerson = CallerRoom.GetOtherPerson(CurrentConnection);
-            await Clients.Client(CurrentConnection.ConnectionId).ReceiveMessage(message);
-            await Clients.Client(otherPerson.ConnectionId).ReceiveMessage(message);
+            _chatService.StopChatting(CurrentConnection,async c =>{
+                await Clients.Client(c.ConnectionId).StopChatting();
+            });
         }
+
+
 
         public override async Task OnDisconnectedAsync(Exception exception)
         {
-            await StopChatting();
+            StopChatting();
 
-            if(CurrentConnection != null)_connections.Remove(CurrentConnection);
+            if(CurrentConnection != null)_chatService.RemoveConnection(CurrentConnection);
             await base.OnDisconnectedAsync(exception);
         }
-
-        private void DestroyRoom()
-        {
-            var otherPerson = CallerRoom.GetOtherPerson(CurrentConnection);
-            CurrentConnection.SetCurrentRoom(null);
-            otherPerson.SetCurrentRoom(null);
-            CurrentConnection.ConnectionState = ConnectionState.Passive;
-            otherPerson.ConnectionState = ConnectionState.Passive;
-            _rooms.Remove(CallerRoom);
-        }
-
-
     }
 }
