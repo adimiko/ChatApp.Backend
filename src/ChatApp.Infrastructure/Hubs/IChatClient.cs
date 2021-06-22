@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
-using ChatApp.Api.Models;
 
-namespace ChatApp.Api.Hubs
+namespace ChatApp.Infrastructure.Hubs
 {
     public interface IChatClient
     {

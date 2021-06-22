@@ -1,4 +1,4 @@
-namespace ChatApp.Api.Models
+namespace ChatApp.Domain.Models
 {
     public enum ConnectionState
     {
