@@ -36,7 +36,9 @@ namespace ChatApp.Infrastructure.Hubs
 
         public override async Task OnDisconnectedAsync(Exception exception)
         {
+            await _chatService.RemoveFromLobbyAsync(await CurrentAnonymousUser());
             await _anonymousUsersManagement.RemoveAsync(await CurrentAnonymousUser());
+            //remove room
             await base.OnDisconnectedAsync(exception);
         }
     }

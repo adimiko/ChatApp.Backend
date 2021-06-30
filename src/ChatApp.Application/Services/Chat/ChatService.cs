@@ -34,6 +34,13 @@ namespace ChatApp.Application.Services.Chat
             await _websocketSenderService.StartChatting(room);
         }
 
+        public async Task RemoveFromLobbyAsync(AnonymousUser anonymousUser)
+        {
+            var lobby = await _lobbyRepo.GetLobby();
+            lobby.Remove(anonymousUser);
+            await _lobbyRepo.UpdateLobby(lobby);
+        }
+
         public async Task SendMessageToRoomAsync(AnonymousUser anonymousUser, string message)
         {
             if(string.IsNullOrWhiteSpace(message)) return;

@@ -6,6 +6,7 @@ namespace ChatApp.Application.Services.Chat
     public interface IChatService : IService
     {
         Task JoinToLobbyAsync(AnonymousUser anonymousUser);
+        Task RemoveFromLobbyAsync(AnonymousUser anonymousUser);
         Task SendMessageToRoomAsync(AnonymousUser anonymousUser, string message);
 
         Task StopChattingAsync(AnonymousUser anonymousUser);
